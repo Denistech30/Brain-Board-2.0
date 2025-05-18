@@ -66,7 +66,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const { t } = useTranslation();
 
   return (
-    <>
+    <Box sx={{ width: '100%', overflowX: 'auto' }}>
       <Typography
         variant="h6"
         gutterBottom
@@ -74,7 +74,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       >
         {t("results")}
       </Typography>
-      <FormControl sx={{ mb: 2, minWidth: 200 }}>
+      <FormControl sx={{ mb: 2, minWidth: { xs: 120, sm: 200 } }}>
         <InputLabel id="result-view-select-label">
           {t("result_view")}
         </InputLabel>
@@ -98,234 +98,236 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           <MenuItem value="firstTerm">{t("first_term")}</MenuItem>
           <MenuItem value="secondTerm">{t("second_term")}</MenuItem>
           <MenuItem value="thirdTerm">{t("third_term")}</MenuItem>
-          <MenuItem value="annual">{t("annual_summary")}</MenuItem>
+          <MenuItem value="annual">{t("annual")}</MenuItem>
         </Select>
       </FormControl>
-      <Box sx={{ overflowX: "auto" }}>
-        <Table
-          sx={{
-            bgcolor: "white",
-            borderCollapse: "separate",
-            borderSpacing: 0,
-            "& th, & td": {
-              borderBottom: "1px solid #e0e0e0",
-              padding: { xs: "4px", sm: "8px" },
-              fontSize: { xs: "0.75rem", sm: "0.875rem" },
-            },
-          }}
-        >
-          <TableHead>
-            <TableRow>
-              <TableCell
-                sx={{
-                  fontWeight: "bold",
-                  minWidth: { xs: 40, sm: 60 },
-                }}
-              >
-                {t("rank")}
-              </TableCell>
-              <TableCell
-                sx={{
-                  fontWeight: "bold",
-                  minWidth: { xs: 100, sm: 150 },
-                  position: "sticky",
-                  left: 0,
-                  bgcolor: "white",
-                  zIndex: 1,
-                }}
-              >
-                {t("student")}
-              </TableCell>
-              {selectedResultView === "annual" ? (
-                <>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("first_term_avg")}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("second_term_avg")}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("third_term_avg")}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("final_avg")}
-                  </TableCell>
-                </>
-              ) : (
-                <>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("total_marks")}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: "bold",
-                      minWidth: { xs: 80, sm: 120 },
-                    }}
-                  >
-                    {t("average")}
-                  </TableCell>
-                </>
-              )}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {selectedResultView === "sequence" &&
-              sequenceResults.map((result) => (
-                <TableRow key={result.student}>
-                  <TableCell>{result.rank}</TableCell>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      bgcolor: "white",
-                      zIndex: 1,
-                    }}
-                  >
-                    {result.student}
-                  </TableCell>
-                  <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
-                  <TableCell
-                    sx={{
-                      color:
-                        result.average < passingMark ? "red" : "inherit",
-                    }}
-                  >
-                    {result.average.toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            {selectedResultView === "firstTerm" &&
-              firstTermResults.map((result) => (
-                <TableRow key={result.student}>
-                  <TableCell>{result.rank}</TableCell>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      bgcolor: "white",
-                      zIndex: 1,
-                    }}
-                  >
-                    {result.student}
-                  </TableCell>
-                  <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
-                  <TableCell
-                    sx={{
-                      color:
-                        result.average < passingMark ? "red" : "inherit",
-                    }}
-                  >
-                    {result.average.toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            {selectedResultView === "secondTerm" &&
-              secondTermResults.map((result) => (
-                <TableRow key={result.student}>
-                  <TableCell>{result.rank}</TableCell>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      bgcolor: "white",
-                      zIndex: 1,
-                    }}
-                  >
-                    {result.student}
-                  </TableCell>
-                  <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
-                  <TableCell
-                    sx={{
-                      color:
-                        result.average < passingMark ? "red" : "inherit",
-                    }}
-                  >
-                    {result.average.toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            {selectedResultView === "thirdTerm" &&
-              thirdTermResults.map((result) => (
-                <TableRow key={result.student}>
-                  <TableCell>{result.rank}</TableCell>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      bgcolor: "white",
-                      zIndex: 1,
-                    }}
-                  >
-                    {result.student}
-                  </TableCell>
-                  <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
-                  <TableCell
-                    sx={{
-                      color:
-                        result.average < passingMark ? "red" : "inherit",
-                    }}
-                  >
-                    {result.average.toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            {selectedResultView === "annual" &&
-              annualResults.map((result) => (
-                <TableRow key={result.student}>
-                  <TableCell>{result.rank}</TableCell>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      bgcolor: "white",
-                      zIndex: 1,
-                    }}
-                  >
-                    {result.student}
-                  </TableCell>
-                  <TableCell>{result.firstTermAverage.toFixed(2)}</TableCell>
-                  <TableCell>{result.secondTermAverage.toFixed(2)}</TableCell>
-                  <TableCell>{result.thirdTermAverage.toFixed(2)}</TableCell>
-                  <TableCell
-                    sx={{
-                      color:
-                        result.finalAverage < passingMark
-                          ? "red"
-                          : "inherit",
-                    }}
-                  >
-                    {result.finalAverage.toFixed(2)}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </Box>
+      <Table
+        sx={{
+          bgcolor: "white",
+          borderCollapse: "separate",
+          borderSpacing: 0,
+          minWidth: 600,
+          width: "100%",
+          "& th, & td": {
+            borderBottom: "1px solid #e0e0e0",
+            padding: { xs: "4px", sm: "8px" },
+            fontSize: { xs: "0.75rem", sm: "0.875rem" },
+            wordBreak: 'break-word',
+            maxWidth: { xs: 80, sm: 160 },
+          },
+        }}
+      >
+        <TableHead>
+          <TableRow>
+            <TableCell
+              sx={{
+                fontWeight: "bold",
+                minWidth: { xs: 40, sm: 60 },
+              }}
+            >
+              {t("rank")}
+            </TableCell>
+            <TableCell
+              sx={{
+                fontWeight: "bold",
+                minWidth: { xs: 100, sm: 150 },
+                position: "sticky",
+                left: 0,
+                bgcolor: "white",
+                zIndex: 1,
+              }}
+            >
+              {t("student")}
+            </TableCell>
+            {selectedResultView === "annual" ? (
+              <>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("first_term_avg")}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("second_term_avg")}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("third_term_avg")}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("final_avg")}
+                </TableCell>
+              </>
+            ) : (
+              <>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("total_marks")}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    minWidth: { xs: 80, sm: 120 },
+                  }}
+                >
+                  {t("average")}
+                </TableCell>
+              </>
+            )}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {selectedResultView === "sequence" &&
+            sequenceResults.map((result) => (
+              <TableRow key={result.student}>
+                <TableCell>{result.rank}</TableCell>
+                <TableCell
+                  sx={{
+                    position: "sticky",
+                    left: 0,
+                    bgcolor: "white",
+                    zIndex: 1,
+                  }}
+                >
+                  {result.student}
+                </TableCell>
+                <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      result.average < passingMark ? "red" : "inherit",
+                  }}
+                >
+                  {result.average.toFixed(2)}
+                </TableCell>
+              </TableRow>
+            ))}
+          {selectedResultView === "firstTerm" &&
+            firstTermResults.map((result) => (
+              <TableRow key={result.student}>
+                <TableCell>{result.rank}</TableCell>
+                <TableCell
+                  sx={{
+                    position: "sticky",
+                    left: 0,
+                    bgcolor: "white",
+                    zIndex: 1,
+                  }}
+                >
+                  {result.student}
+                </TableCell>
+                <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      result.average < passingMark ? "red" : "inherit",
+                  }}
+                >
+                  {result.average.toFixed(2)}
+                </TableCell>
+              </TableRow>
+            ))}
+          {selectedResultView === "secondTerm" &&
+            secondTermResults.map((result) => (
+              <TableRow key={result.student}>
+                <TableCell>{result.rank}</TableCell>
+                <TableCell
+                  sx={{
+                    position: "sticky",
+                    left: 0,
+                    bgcolor: "white",
+                    zIndex: 1,
+                  }}
+                >
+                  {result.student}
+                </TableCell>
+                <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      result.average < passingMark ? "red" : "inherit",
+                  }}
+                >
+                  {result.average.toFixed(2)}
+                </TableCell>
+              </TableRow>
+            ))}
+          {selectedResultView === "thirdTerm" &&
+            thirdTermResults.map((result) => (
+              <TableRow key={result.student}>
+                <TableCell>{result.rank}</TableCell>
+                <TableCell
+                  sx={{
+                    position: "sticky",
+                    left: 0,
+                    bgcolor: "white",
+                    zIndex: 1,
+                  }}
+                >
+                  {result.student}
+                </TableCell>
+                <TableCell>{result.totalMarks.toFixed(2)}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      result.average < passingMark ? "red" : "inherit",
+                  }}
+                >
+                  {result.average.toFixed(2)}
+                </TableCell>
+              </TableRow>
+            ))}
+          {selectedResultView === "annual" &&
+            annualResults.map((result) => (
+              <TableRow key={result.student}>
+                <TableCell>{result.rank}</TableCell>
+                <TableCell
+                  sx={{
+                    position: "sticky",
+                    left: 0,
+                    bgcolor: "white",
+                    zIndex: 1,
+                  }}
+                >
+                  {result.student}
+                </TableCell>
+                <TableCell>{result.firstTermAverage.toFixed(2)}</TableCell>
+                <TableCell>{result.secondTermAverage.toFixed(2)}</TableCell>
+                <TableCell>{result.thirdTermAverage.toFixed(2)}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      result.finalAverage < passingMark
+                        ? "red"
+                        : "inherit",
+                  }}
+                >
+                  {result.finalAverage.toFixed(2)}
+                </TableCell>
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
       <Typography
         variant="body1"
         sx={{ mt: 2, fontSize: { xs: "0.75rem", sm: "1rem" } }}
@@ -369,7 +371,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       >
         {t("download_pdf")}
       </Button>
-    </>
+    </Box>
   );
 };
 

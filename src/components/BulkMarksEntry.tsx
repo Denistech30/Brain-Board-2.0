@@ -15,6 +15,7 @@ import {
   TableRow,
   TableCell,
   TextField,
+  SelectChangeEvent,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import SaveIcon from "@mui/icons-material/Save";
@@ -83,13 +84,14 @@ const BulkMarksEntry: React.FC<BulkMarksEntryProps> = ({
     top: "50%",
     left: "50%",
     transform: "translate(-50%, -50%)",
-    width: { xs: "90%", sm: "80%", md: 600 },
-    maxWidth: "100%",
+    width: { xs: "100vw", sm: "80vw", md: 600 },
+    maxWidth: "100vw",
     bgcolor: "background.paper",
     boxShadow: 24,
-    p: { xs: 2, sm: 4 },
-    borderRadius: 2,
-    maxHeight: "80vh",
+    p: { xs: 1, sm: 4 },
+    borderRadius: { xs: 0, sm: 2 },
+    maxHeight: { xs: '100vh', sm: '80vh' },
+    height: { xs: '100vh', sm: 'auto' },
     overflowY: "auto" as const,
   };
 
@@ -123,7 +125,7 @@ const BulkMarksEntry: React.FC<BulkMarksEntryProps> = ({
             labelId="subject-select-label"
             value={selectedSubject}
             label={t("subject_name")}
-            onChange={(e) => setSelectedSubject(e.target.value as string)}
+            onChange={(e: SelectChangeEvent) => setSelectedSubject(e.target.value as string)}
             size="small"
           >
             {subjects.map((subject) => (
@@ -162,7 +164,7 @@ const BulkMarksEntry: React.FC<BulkMarksEntryProps> = ({
                           type="number"
                           size="small"
                           value={marks[index]}
-                          onChange={(e) => handleMarkChange(index, e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleMarkChange(index, e.target.value)}
                           inputProps={{
                             min: 0,
                             max: subjects.find(s => s.name === selectedSubject)?.total,

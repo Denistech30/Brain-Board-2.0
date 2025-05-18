@@ -50,10 +50,14 @@ const MarksTable: React.FC<MarksTableProps> = ({
           bgcolor: "white",
           borderCollapse: "separate",
           borderSpacing: 0,
+          minWidth: 600,
+          width: "100%",
           "& th, & td": {
             borderBottom: "1px solid #e0e0e0",
             padding: { xs: "4px", sm: "8px" },
             fontSize: { xs: "0.75rem", sm: "0.875rem" },
+            wordBreak: "break-word",
+            maxWidth: { xs: 80, sm: 160 },
           },
         }}
       >

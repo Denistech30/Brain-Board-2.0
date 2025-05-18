@@ -12,8 +12,22 @@ import {
   Select,
   MenuItem,
   useTheme,
-  CircularProgress
+  CircularProgress,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Drawer,
+  Menu,
+  MenuItem as MuiMenuItem,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Divider
 } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import LanguageIcon from '@mui/icons-material/Language';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { StudentMarks, SequenceResult, TermResult, AnnualResult } from './types';
 import StudentModal from './components/StudentModal';
 import SubjectModal from './components/SubjectModal';
@@ -55,6 +69,9 @@ function App() {
   const [selectedResultView, setSelectedResultView] = useState<'sequence' | 'firstTerm' | 'secondTerm' | 'thirdTerm' | 'annual'>('sequence');
   const [studentComments, setStudentComments] = useState<{[key: number]: {[key: string]: string}}>({});
   const [dataLoading, setDataLoading] = useState(true);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMenuOpen = Boolean(menuAnchorEl);
 
   // Results state
   const [sequenceResults, setSequenceResults] = useState<SequenceResult[]>([]);
@@ -605,21 +622,53 @@ function App() {
   if (loading || dataLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
+        <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Box
+            component="img"
+            src="/pwa-192x192.png"
+            alt="BrainBoard Logo"
+            sx={{
+              width: { xs: 80, sm: 100, md: 120 },
+              height: { xs: 80, sm: 100, md: 120 },
+              mb: 2,
+              zIndex: 1,
+              opacity: 0.9,
+              display: 'block',
+            }}
+          />
+          <CircularProgress
+            size={64}
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 2,
+            }}
+          />
+        </Box>
       </Box>
     );
   }
 
   return (
     <AuthWrapper>
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            mb: 3
-          }}>
+      <AppBar position="static" color="default" elevation={0} sx={{ mb: 2 }}>
+        <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', px: { xs: 1, sm: 2, md: 4 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box
+              component="img"
+              src="/pwa-192x192.png"
+              alt="BrainBoard Logo"
+              sx={{
+                height: { xs: 32, sm: 40 },
+                width: 'auto',
+                mr: 1.5,
+                borderRadius: 1,
+                boxShadow: 1,
+                display: 'block',
+              }}
+            />
             <Typography 
               variant="h4" 
               component="h1"
@@ -628,36 +677,65 @@ function App() {
                 alignItems: 'center',
                 gap: 1,
                 color: theme.palette.primary.main,
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                fontSize: { xs: '1.5rem', sm: '2.125rem' }
               }}
             >
               <span style={{ color: theme.palette.primary.main }}>Brain</span>
               <span style={{ color: theme.palette.secondary.main }}>Board</span>
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>{t('language')}</InputLabel>
-                <Select
-                  value={i18n.language}
-                  label={t('language')}
-                  onChange={(e) => handleLanguageChange(e.target.value)}
-                >
-                  <MenuItem value="en">{t('english')}</MenuItem>
-                  <MenuItem value="fr">{t('french')}</MenuItem>
-                </Select>
-              </FormControl>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={logout}
-              >
-                {t('logout')}
-              </Button>
-            </Box>
-          </Grid>
-
+          </Box>
+          {/* Hamburger for mobile, menu for desktop */}
+          <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+            <IconButton edge="end" color="inherit" onClick={() => setDrawerOpen(true)}>
+              <MenuIcon />
+            </IconButton>
+          </Box>
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 2 }}>
+            <IconButton color="inherit" onClick={(e) => setMenuAnchorEl(e.currentTarget)}>
+              <LanguageIcon />
+            </IconButton>
+            <Menu
+              anchorEl={menuAnchorEl}
+              open={isMenuOpen}
+              onClose={() => setMenuAnchorEl(null)}
+            >
+              <MuiMenuItem onClick={() => { handleLanguageChange('en'); setMenuAnchorEl(null); }}>{t('english')}</MuiMenuItem>
+              <MuiMenuItem onClick={() => { handleLanguageChange('fr'); setMenuAnchorEl(null); }}>{t('french')}</MuiMenuItem>
+            </Menu>
+            <IconButton color="inherit" onClick={logout}>
+              <LogoutIcon />
+            </IconButton>
+          </Box>
+        </Toolbar>
+      </AppBar>
+      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Box sx={{ width: 220 }} role="presentation" onClick={() => setDrawerOpen(false)}>
+          <List>
+            <ListItem button onClick={() => setMenuAnchorEl(document.body)}>
+              <ListItemIcon><LanguageIcon /></ListItemIcon>
+              <ListItemText primary={t('language')} />
+            </ListItem>
+            <List component="div" disablePadding sx={{ pl: 3 }}>
+              <ListItem button onClick={() => handleLanguageChange('en')}>
+                <ListItemText primary={t('english')} />
+              </ListItem>
+              <ListItem button onClick={() => handleLanguageChange('fr')}>
+                <ListItemText primary={t('french')} />
+              </ListItem>
+            </List>
+            <Divider />
+            <ListItem button onClick={logout}>
+              <ListItemIcon><LogoutIcon /></ListItemIcon>
+              <ListItemText primary={t('logout')} />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 4 }, mt: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 4 } }}>
+        <Grid container spacing={{ xs: 1.5, sm: 3 }}>
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
               <Button 
                 variant="contained" 
                 onClick={() => setStudentsOpen(true)}
@@ -665,7 +743,9 @@ function App() {
                   bgcolor: theme.palette.primary.main,
                   '&:hover': {
                     bgcolor: theme.palette.primary.dark,
-                  }
+                  },
+                  width: { xs: '100%', sm: 'auto' },
+                  mb: { xs: 1, sm: 0 }
                 }}
               >
                 {t('students')}
@@ -679,7 +759,9 @@ function App() {
                   bgcolor: theme.palette.secondary.main,
                   '&:hover': {
                     bgcolor: theme.palette.secondary.dark,
-                  }
+                  },
+                  width: { xs: '100%', sm: 'auto' },
+                  mb: { xs: 1, sm: 0 }
                 }}
               >
                 {t('subjects')}
@@ -688,6 +770,7 @@ function App() {
                 variant="outlined" 
                 color="error" 
                 onClick={handleResetData}
+                sx={{ width: { xs: '100%', sm: 'auto' } }}
               >
                 {t('reset_data')}
               </Button>
@@ -699,18 +782,18 @@ function App() {
               <Paper 
                 elevation={3} 
                 sx={{ 
-                  p: 3,
+                  p: { xs: 1.5, sm: 3 },
                   borderRadius: 2,
                   transition: 'box-shadow 0.3s ease-in-out',
                   '&:hover': {
                     boxShadow: 6,
-                  }
+                  },
+                  overflowX: 'auto'
                 }}
               >
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                   {t('enter_marks_comments')}
                 </Typography>
-                
                 <FormControl fullWidth sx={{ mb: 2 }}>
                   <InputLabel>{t('sequence')}</InputLabel>
                   <Select
@@ -726,22 +809,23 @@ function App() {
                     <MenuItem value="sixthSequence">{t('sixth_sequence')}</MenuItem>
                   </Select>
                 </FormControl>
-
-                <MarksTable
-                  students={students.map(s => s.name)}
-                  subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
-                  marks={marks}
-                  selectedSequence={selectedSequence}
-                  studentComments={studentComments}
-                  onMarkChange={handleMarkChange}
-                  onCommentChange={handleCommentChange}
-                />
-
-                <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
+                <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                  <MarksTable
+                    students={students.map(s => s.name)}
+                    subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
+                    marks={marks}
+                    selectedSequence={selectedSequence}
+                    studentComments={studentComments}
+                    onMarkChange={handleMarkChange}
+                    onCommentChange={handleCommentChange}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, mt: 3, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
                   <Button
                     variant="contained"
                     onClick={calculateSequenceResults}
                     disabled={!hasMarks}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     {t('calculate_results')}
                   </Button>
@@ -750,6 +834,7 @@ function App() {
                     color="secondary"
                     onClick={calculateTermResults}
                     disabled={!hasMarks}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     {t('term_results')}
                   </Button>
@@ -758,6 +843,7 @@ function App() {
                     color="info"
                     onClick={() => setReportModalOpen(true)}
                     disabled={!hasMarks}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     {t('student_reports')}
                   </Button>
@@ -765,6 +851,7 @@ function App() {
                     variant="contained"
                     color="warning"
                     onClick={() => setBulkMarksModalOpen(true)}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     {t('bulk_marks_entry')}
                   </Button>
@@ -778,58 +865,61 @@ function App() {
               <Paper 
                 elevation={3} 
                 sx={{ 
-                  p: 3,
+                  p: { xs: 1.5, sm: 3 },
                   borderRadius: 2,
                   mt: 2,
                   transition: 'box-shadow 0.3s ease-in-out',
                   '&:hover': {
                     boxShadow: 6,
-                  }
+                  },
+                  overflowX: 'auto'
                 }}
               >
-                <ResultsTable
-                  selectedResultView={selectedResultView}
-                  onResultViewChange={setSelectedResultView}
-                  sequenceResults={sequenceResults}
-                  firstTermResults={firstTermResults}
-                  secondTermResults={secondTermResults}
-                  thirdTermResults={thirdTermResults}
-                  annualResults={annualResults}
-                  sequenceClassAverage={sequenceClassAverage}
-                  firstTermClassAverage={firstTermClassAverage}
-                  secondTermClassAverage={secondTermClassAverage}
-                  thirdTermClassAverage={thirdTermClassAverage}
-                  annualClassAverage={annualClassAverage}
-                  sequencePassPercentage={sequencePassPercentage}
-                  firstTermPassPercentage={firstTermPassPercentage}
-                  secondTermPassPercentage={secondTermPassPercentage}
-                  thirdTermPassPercentage={thirdTermPassPercentage}
-                  annualPassPercentage={annualPassPercentage}
-                  passingMark={PASSING_MARK}
-                  onDownloadPDF={() => {
-                    generateResultsPDF(
-                      t(selectedResultView),
-                      selectedResultView === 'sequence' ? sequenceResults :
-                      selectedResultView === 'firstTerm' ? firstTermResults :
-                      selectedResultView === 'secondTerm' ? secondTermResults :
-                      selectedResultView === 'thirdTerm' ? thirdTermResults :
-                      annualResults,
-                      selectedResultView === 'sequence' ? sequenceClassAverage! :
-                      selectedResultView === 'firstTerm' ? firstTermClassAverage! :
-                      selectedResultView === 'secondTerm' ? secondTermClassAverage! :
-                      selectedResultView === 'thirdTerm' ? thirdTermClassAverage! :
-                      annualClassAverage!,
-                      selectedResultView === 'sequence' ? sequencePassPercentage! :
-                      selectedResultView === 'firstTerm' ? firstTermPassPercentage! :
-                      selectedResultView === 'secondTerm' ? secondTermPassPercentage! :
-                      selectedResultView === 'thirdTerm' ? thirdTermPassPercentage! :
-                      annualPassPercentage!,
-                      selectedResultView === 'annual',
-                      t
-                    );
-                  }}
-                  isDownloadDisabled={false}
-                />
+                <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                  <ResultsTable
+                    selectedResultView={selectedResultView}
+                    onResultViewChange={setSelectedResultView}
+                    sequenceResults={sequenceResults}
+                    firstTermResults={firstTermResults}
+                    secondTermResults={secondTermResults}
+                    thirdTermResults={thirdTermResults}
+                    annualResults={annualResults}
+                    sequenceClassAverage={sequenceClassAverage}
+                    firstTermClassAverage={firstTermClassAverage}
+                    secondTermClassAverage={secondTermClassAverage}
+                    thirdTermClassAverage={thirdTermClassAverage}
+                    annualClassAverage={annualClassAverage}
+                    sequencePassPercentage={sequencePassPercentage}
+                    firstTermPassPercentage={firstTermPassPercentage}
+                    secondTermPassPercentage={secondTermPassPercentage}
+                    thirdTermPassPercentage={thirdTermPassPercentage}
+                    annualPassPercentage={annualPassPercentage}
+                    passingMark={PASSING_MARK}
+                    onDownloadPDF={() => {
+                      generateResultsPDF(
+                        t(selectedResultView),
+                        selectedResultView === 'sequence' ? sequenceResults :
+                        selectedResultView === 'firstTerm' ? firstTermResults :
+                        selectedResultView === 'secondTerm' ? secondTermResults :
+                        selectedResultView === 'thirdTerm' ? thirdTermResults :
+                        annualResults,
+                        selectedResultView === 'sequence' ? sequenceClassAverage! :
+                        selectedResultView === 'firstTerm' ? firstTermClassAverage! :
+                        selectedResultView === 'secondTerm' ? secondTermClassAverage! :
+                        selectedResultView === 'thirdTerm' ? thirdTermClassAverage! :
+                        annualClassAverage!,
+                        selectedResultView === 'sequence' ? sequencePassPercentage! :
+                        selectedResultView === 'firstTerm' ? firstTermPassPercentage! :
+                        selectedResultView === 'secondTerm' ? secondTermPassPercentage! :
+                        selectedResultView === 'thirdTerm' ? thirdTermPassPercentage! :
+                        annualPassPercentage!,
+                        selectedResultView === 'annual',
+                        t
+                      );
+                    }}
+                    isDownloadDisabled={false}
+                  />
+                </Box>
               </Paper>
             </Grid>
           )}
