@@ -35,6 +35,12 @@ import MarksTable from './components/MarksTable';
 import ResultsTable from './components/ResultsTable';
 import ReportModal from './components/ReportModal';
 import BulkMarksEntry from './components/BulkMarksEntry';
+import BottomNav from './components/BottomNav';
+import HomePage from './components/HomePage';
+import GradesPage from './components/GradesPage';
+import EnhancedCalculatePage from './components/EnhancedCalculatePage';
+import EnhancedResultsPage from './components/EnhancedResultsPage';
+import TemplateGalleryPage from './components/TemplateGalleryPage';
 import { generateStudentReport, generateResultsPDF } from './utils/pdfGenerator';
 import { useAuth } from './context/AuthContext';
 import AuthWrapper from './components/Auth/AuthWrapper';
@@ -63,6 +69,10 @@ function App() {
   const [studentsOpen, setStudentsOpen] = useState(false);
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  // Template generation flow state
+  const [reportForTemplate, setReportForTemplate] = useState(false);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [pendingTemplateData, setPendingTemplateData] = useState<any | null>(null);
   const [bulkMarksModalOpen, setBulkMarksModalOpen] = useState(false);
   const [marks, setMarks] = useState<StudentMarks[]>([]);
   const [selectedSequence, setSelectedSequence] = useState<keyof StudentMarks>('firstSequence');
@@ -71,6 +81,8 @@ function App() {
   const [dataLoading, setDataLoading] = useState(true);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bottomNavValue, setBottomNavValue] = useState(0);
+  const [currentView, setCurrentView] = useState<'home' | 'grades' | 'calculate' | 'results' | 'print'>('home');
   const isMenuOpen = Boolean(menuAnchorEl);
 
   // Results state
@@ -381,7 +393,159 @@ function App() {
     }
   };
 
-  // Calculate results
+  // Helper function to check if marks exist for a sequence
+  const hasMarksForSequence = (sequenceName: keyof StudentMarks) => {
+    return students.some((_, index) => 
+      subjects.some(subject => {
+        const mark = marks[index]?.[sequenceName]?.[subject.name];
+        return mark !== undefined && mark !== null && mark !== '';
+      })
+    );
+  };
+
+  // Individual term calculation functions
+  const calculateFirstTerm = () => {
+    if (!hasMarksForSequence('firstSequence') || !hasMarksForSequence('secondSequence')) {
+      return;
+    }
+
+    const firstTermResults = students.map((student, index) => {
+      let totalMarks = 0;
+      let totalPossible = 0;
+
+      subjects.forEach(subject => {
+        const seq1Mark = Number(marks[index].firstSequence[subject.name] || 0);
+        const seq2Mark = Number(marks[index].secondSequence[subject.name] || 0);
+        totalMarks += (seq1Mark + seq2Mark);
+        totalPossible += (subject.total * 2);
+      });
+
+      const average = (totalMarks / totalPossible) * 20;
+      return { student: student.name, totalMarks, average };
+    });
+
+    const sortedFirstTerm = [...firstTermResults].sort((a, b) => b.average - a.average);
+    const firstTermWithRank = sortedFirstTerm.map((result, idx) => ({
+      ...result,
+      rank: idx + 1
+    }));
+
+    const firstTermClassAvg = firstTermResults.reduce((sum, { average }) => sum + average, 0) / firstTermResults.length;
+    const firstTermPassCount = firstTermResults.filter(({ average }) => average >= PASSING_MARK).length;
+    const firstTermPassPerc = (firstTermPassCount / firstTermResults.length) * 100;
+
+    setFirstTermResults(firstTermWithRank);
+    setFirstTermClassAverage(firstTermClassAvg);
+    setFirstTermPassPercentage(firstTermPassPerc);
+  };
+
+  const calculateSecondTerm = () => {
+    if (!hasMarksForSequence('thirdSequence') || !hasMarksForSequence('fourthSequence')) {
+      return;
+    }
+
+    const secondTermResults = students.map((student, index) => {
+      let totalMarks = 0;
+      let totalPossible = 0;
+
+      subjects.forEach(subject => {
+        const seq3Mark = Number(marks[index].thirdSequence[subject.name] || 0);
+        const seq4Mark = Number(marks[index].fourthSequence[subject.name] || 0);
+        totalMarks += (seq3Mark + seq4Mark);
+        totalPossible += (subject.total * 2);
+      });
+
+      const average = (totalMarks / totalPossible) * 20;
+      return { student: student.name, totalMarks, average };
+    });
+
+    const sortedSecondTerm = [...secondTermResults].sort((a, b) => b.average - a.average);
+    const secondTermWithRank = sortedSecondTerm.map((result, idx) => ({
+      ...result,
+      rank: idx + 1
+    }));
+
+    const secondTermClassAvg = secondTermResults.reduce((sum, { average }) => sum + average, 0) / secondTermResults.length;
+    const secondTermPassCount = secondTermResults.filter(({ average }) => average >= PASSING_MARK).length;
+    const secondTermPassPerc = (secondTermPassCount / secondTermResults.length) * 100;
+
+    setSecondTermResults(secondTermWithRank);
+    setSecondTermClassAverage(secondTermClassAvg);
+    setSecondTermPassPercentage(secondTermPassPerc);
+  };
+
+  const calculateThirdTerm = () => {
+    if (!hasMarksForSequence('fifthSequence') || !hasMarksForSequence('sixthSequence')) {
+      return;
+    }
+
+    const thirdTermResults = students.map((student, index) => {
+      let totalMarks = 0;
+      let totalPossible = 0;
+
+      subjects.forEach(subject => {
+        const seq5Mark = Number(marks[index].fifthSequence[subject.name] || 0);
+        const seq6Mark = Number(marks[index].sixthSequence[subject.name] || 0);
+        totalMarks += (seq5Mark + seq6Mark);
+        totalPossible += (subject.total * 2);
+      });
+
+      const average = (totalMarks / totalPossible) * 20;
+      return { student: student.name, totalMarks, average };
+    });
+
+    const sortedThirdTerm = [...thirdTermResults].sort((a, b) => b.average - a.average);
+    const thirdTermWithRank = sortedThirdTerm.map((result, idx) => ({
+      ...result,
+      rank: idx + 1
+    }));
+
+    const thirdTermClassAvg = thirdTermResults.reduce((sum, { average }) => sum + average, 0) / thirdTermResults.length;
+    const thirdTermPassCount = thirdTermResults.filter(({ average }) => average >= PASSING_MARK).length;
+    const thirdTermPassPerc = (thirdTermPassCount / thirdTermResults.length) * 100;
+
+    setThirdTermResults(thirdTermWithRank);
+    setThirdTermClassAverage(thirdTermClassAvg);
+    setThirdTermPassPercentage(thirdTermPassPerc);
+  };
+
+  const calculateAnnualResults = () => {
+    // Only calculate annual results if all three terms have been calculated
+    if (firstTermResults.length === 0 || secondTermResults.length === 0 || thirdTermResults.length === 0) {
+      return;
+    }
+
+    const annualResults = students.map((student) => {
+      const firstTermAvg = firstTermResults.find(r => r.student === student.name)?.average || 0;
+      const secondTermAvg = secondTermResults.find(r => r.student === student.name)?.average || 0;
+      const thirdTermAvg = thirdTermResults.find(r => r.student === student.name)?.average || 0;
+      const finalAverage = (firstTermAvg + secondTermAvg + thirdTermAvg) / 3;
+
+      return {
+        student: student.name,
+        firstTermAverage: firstTermAvg,
+        secondTermAverage: secondTermAvg,
+        thirdTermAverage: thirdTermAvg,
+        finalAverage
+      };
+    });
+
+    const sortedAnnual = [...annualResults].sort((a, b) => b.finalAverage - a.finalAverage);
+    const annualWithRank = sortedAnnual.map((result, idx) => ({
+      ...result,
+      rank: idx + 1
+    }));
+
+    const annualClassAvg = annualResults.reduce((sum, { finalAverage }) => sum + finalAverage, 0) / annualResults.length;
+    const annualPassCount = annualResults.filter(({ finalAverage }) => finalAverage >= PASSING_MARK).length;
+    const annualPassPerc = (annualPassCount / annualResults.length) * 100;
+
+    setAnnualResults(annualWithRank);
+    setAnnualClassAverage(annualClassAvg);
+    setAnnualPassPercentage(annualPassPerc);
+  };
+
+  // Calculate results with auto-term calculation
   const calculateSequenceResults = () => {
     const results = students.map((student, index) => {
       let totalMarks = 0;
@@ -411,9 +575,23 @@ function App() {
     setSequenceClassAverage(classAvg);
     setSequencePassPercentage(passPerc);
     setSelectedResultView('sequence');
+
+    // Auto-calculate terms based on the current sequence
+    if (selectedSequence === 'firstSequence' || selectedSequence === 'secondSequence') {
+      calculateFirstTerm();
+    } else if (selectedSequence === 'thirdSequence' || selectedSequence === 'fourthSequence') {
+      calculateSecondTerm();
+    } else if (selectedSequence === 'fifthSequence' || selectedSequence === 'sixthSequence') {
+      calculateThirdTerm();
+    }
+
+    // Auto-calculate annual results if all terms are available
+    setTimeout(() => {
+      calculateAnnualResults();
+    }, 100); // Small delay to ensure term calculations complete first
   };
 
-  // Calculate term results
+  // Calculate term results (existing function for manual calculation)
   const calculateTermResults = () => {
     // First Term (Sequences 1 & 2)
     const firstTermResults = students.map((student, index) => {
@@ -562,6 +740,197 @@ function App() {
 
   const handleGenerateAllReports = () => {
     students.forEach((_, index) => handleGenerateStudentReport(index));
+  };
+
+  // Template generation helpers (single/batch)
+  const getTemplatePath = (templateId?: string | null) => {
+    return templateId === 'classic-a4'
+      ? '/templates/classic-a4-template.html'
+      : '/templates/classic-a4-template.html';
+  };
+
+  // Truncate to 2 decimals without rounding
+  const toFixedTrunc2 = (val: number): string => {
+    const sign = val < 0 ? -1 : 1;
+    const abs = Math.abs(val);
+    const truncated = Math.floor(abs * 100) / 100;
+    return (sign * truncated).toFixed(2);
+  };
+
+  const buildTemplatePayloadForStudent = (studentIndex: number) => {
+    const extra = pendingTemplateData || {};
+    const studentName = students[studentIndex]?.name || '';
+
+    // Map selectedResultView to the correct sequences
+    const getSeqNamesForView = (view: string) => {
+      if (view === 'firstTerm') return ['firstSequence', 'secondSequence'] as const;
+      if (view === 'secondTerm') return ['thirdSequence', 'fourthSequence'] as const;
+      if (view === 'thirdTerm') return ['fifthSequence', 'sixthSequence'] as const;
+      return [] as const; // annual handled separately
+    };
+
+    // Subjects data based on selected term
+    const subjectsData = subjects.map(sub => {
+      let seq1: number | '' = '';
+      let seq2: number | '' = '';
+      let average: number | '' = '';
+
+      if (selectedResultView === 'annual') {
+        const seqNames = ['firstSequence','secondSequence','thirdSequence','fourthSequence','fifthSequence','sixthSequence'] as const;
+        const vals: number[] = [];
+        seqNames.forEach(sq => {
+          const v = (marks[studentIndex]?.[sq] || {})[sub.name] as number | '' | undefined;
+          if (typeof v === 'number') vals.push(v);
+        });
+        if (vals.length > 0) average = vals.reduce((a,b)=>a+b,0) / vals.length; // no rounding
+      } else {
+        const [a, b] = getSeqNamesForView(selectedResultView);
+        const seq1Raw = a ? (marks[studentIndex]?.[a] || {})[sub.name] as number | '' | undefined : undefined;
+        const seq2Raw = b ? (marks[studentIndex]?.[b] || {})[sub.name] as number | '' | undefined : undefined;
+        seq1 = typeof seq1Raw === 'number' ? seq1Raw : '';
+        seq2 = typeof seq2Raw === 'number' ? seq2Raw : '';
+        if (typeof seq1 === 'number' && typeof seq2 === 'number') average = (seq1 + seq2) / 2; // no rounding
+        else if (typeof seq1 === 'number') average = seq1;
+        else if (typeof seq2 === 'number') average = seq2;
+      }
+
+      const meta = extra?.subjectsMeta?.find((m: any) => m.name === sub.name) || {};
+      const averageFormatted = typeof average === 'number' ? toFixedTrunc2(average) : '';
+      return {
+        name: sub.name,
+        teacher: meta.teacher || '',
+        coefficient: meta.coefficient ?? '',
+        seq1: seq1 === '' ? '' : seq1,
+        seq2: seq2 === '' ? '' : seq2,
+        average: averageFormatted,
+        performance: meta.performance || '',
+        remark: meta.remark || ''
+      };
+    });
+
+    // Term data from results by selectedResultView
+    const titleDefault = selectedResultView === 'firstTerm' ? 'FIRST TERM REPORT CARD'
+      : selectedResultView === 'secondTerm' ? 'SECOND TERM REPORT CARD'
+      : selectedResultView === 'thirdTerm' ? 'THIRD TERM REPORT CARD'
+      : selectedResultView === 'annual' ? 'ANNUAL REPORT CARD'
+      : 'REPORT CARD';
+    const titleFrDefault = selectedResultView === 'firstTerm' ? 'BULLETIN DU PREMIER TRIMESTRE'
+      : selectedResultView === 'secondTerm' ? 'BULLETIN DU DEUXIÈME TRIMESTRE'
+      : selectedResultView === 'thirdTerm' ? 'BULLETIN DU TROISIÈME TRIMESTRE'
+      : selectedResultView === 'annual' ? 'BULLETIN ANNUEL'
+      : 'BULLETIN SCOLAIRE';
+
+    let resultRow: TermResult | undefined;
+    if (selectedResultView === 'firstTerm') {
+      resultRow = firstTermResults.find(r => r.student === studentName);
+    } else if (selectedResultView === 'secondTerm') {
+      resultRow = secondTermResults.find(r => r.student === studentName);
+    } else if (selectedResultView === 'thirdTerm') {
+      resultRow = thirdTermResults.find(r => r.student === studentName);
+    }
+
+    const annualRow = annualResults.find(r => r.student === studentName);
+
+    // Compute annual totals from subject averages if needed
+    let annualWeightedTotal: number | '' = '';
+    if (selectedResultView === 'annual') {
+      let sum = 0;
+      subjectsData.forEach(sd => {
+        const avg = typeof sd.average === 'number' ? sd.average : NaN;
+        const coeff = typeof sd.coefficient === 'number' ? sd.coefficient : Number(sd.coefficient) || 1;
+        if (!isNaN(avg)) sum += avg * coeff;
+      });
+      annualWeightedTotal = sum;
+    }
+
+    // Fallback compute for term totals/average if resultRow missing
+    let termWeightedTotal: number | '' = '';
+    let termOverallAverage: number | '' = '';
+    if (selectedResultView !== 'annual') {
+      let sum = 0;
+      let coeffSum = 0;
+      subjectsData.forEach(sd => {
+        const avg = typeof sd.average === 'number' ? sd.average : (typeof sd.average === 'string' ? Number(sd.average) : NaN);
+        const coeff = typeof sd.coefficient === 'number' ? sd.coefficient : Number(sd.coefficient) || 1;
+        if (!isNaN(avg)) {
+          sum += avg * coeff;
+          coeffSum += coeff;
+        }
+      });
+      if (coeffSum > 0) {
+        termWeightedTotal = sum;
+        termOverallAverage = sum / coeffSum; // will format below
+      }
+    }
+
+    const termData: any = {
+      title: extra?.termTitleEn || titleDefault,
+      titleFr: extra?.termTitleFr || titleFrDefault,
+      mention: extra?.mention || '',
+      performanceFactors: extra?.performanceFactors || '',
+      teacherComment: extra?.teacherComment || '',
+      principalComment: extra?.principalComment || '',
+      totalMarks: selectedResultView === 'annual'
+        ? (annualWeightedTotal === '' ? '' : annualWeightedTotal)
+        : (typeof resultRow?.totalMarks === 'number' ? resultRow.totalMarks : (termWeightedTotal === '' ? '' : termWeightedTotal)),
+      position: selectedResultView === 'annual' ? (annualRow?.rank ?? '') : (resultRow?.rank ?? ''),
+      average: selectedResultView === 'annual'
+        ? (typeof annualRow?.finalAverage === 'number' ? toFixedTrunc2(annualRow.finalAverage) : '')
+        : (typeof resultRow?.average === 'number'
+            ? toFixedTrunc2(resultRow.average)
+            : (termOverallAverage === '' ? '' : toFixedTrunc2(termOverallAverage as number))),
+      classSize: students.length || '',
+      annualAverage: selectedResultView === 'annual'
+        ? (typeof annualRow?.finalAverage === 'number' ? toFixedTrunc2(annualRow.finalAverage) : '')
+        : ''
+    };
+
+    const studentData = {
+      name: studentName,
+      id: extra?.matricule || '',
+      dateOfBirth: extra?.dateOfBirth || '',
+      placeOfBirth: extra?.placeOfBirth || '',
+      className: extra?.className || '',
+      branchOfStudy: extra?.branchOfStudy || '',
+      option: extra?.option || '',
+    };
+
+    return { studentData, subjectsData, termData };
+  };
+
+  const openTemplateTab = (templateId?: string | null, payload?: any) => {
+    try {
+      localStorage.setItem('bb_template_payload', JSON.stringify(payload || {}));
+    } catch (e) {
+      console.error('Failed to store template payload:', e);
+    }
+    const path = getTemplatePath(templateId);
+    window.open(path, '_blank');
+  };
+
+  const handleGenerateTemplateForStudent = (studentIndex: number) => {
+    if (!reportForTemplate) return handleGenerateStudentReport(studentIndex);
+    const payload = buildTemplatePayloadForStudent(studentIndex);
+    openTemplateTab(pendingTemplateId, payload);
+    // Reset flow state and close modal
+    setReportModalOpen(false);
+    setReportForTemplate(false);
+    setPendingTemplateId(null);
+    // keep pendingTemplateData for convenience
+  };
+
+  const handleGenerateTemplateForAll = () => {
+    if (!reportForTemplate) return handleGenerateAllReports();
+    students.forEach((_, idx) => {
+      setTimeout(() => {
+        const payload = buildTemplatePayloadForStudent(idx);
+        openTemplateTab(pendingTemplateId, payload);
+      }, idx * 200); // 200ms delay between tabs
+    });
+    // Reset after scheduling
+    setReportModalOpen(false);
+    setReportForTemplate(false);
+    setPendingTemplateId(null);
   };
 
   // Reset data
@@ -733,198 +1102,126 @@ function App() {
         </Box>
       </Drawer>
       <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 4 }, mt: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 4 } }}>
-        <Grid container spacing={{ xs: 1.5, sm: 3 }}>
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
-              <Button 
-                variant="contained" 
-                onClick={() => setStudentsOpen(true)}
-                sx={{ 
-                  bgcolor: theme.palette.primary.main,
-                  '&:hover': {
-                    bgcolor: theme.palette.primary.dark,
-                  },
-                  width: { xs: '100%', sm: 'auto' },
-                  mb: { xs: 1, sm: 0 }
-                }}
-              >
-                {t('students')}
-              </Button>
-              <Button 
-                variant="contained"
-                color="secondary"
-                onClick={() => setSubjectsOpen(true)}
-                disabled={students.length === 0}
-                sx={{ 
-                  bgcolor: theme.palette.secondary.main,
-                  '&:hover': {
-                    bgcolor: theme.palette.secondary.dark,
-                  },
-                  width: { xs: '100%', sm: 'auto' },
-                  mb: { xs: 1, sm: 0 }
-                }}
-              >
-                {t('subjects')}
-              </Button>
-              <Button 
-                variant="outlined" 
-                color="error" 
-                onClick={handleResetData}
-                sx={{ width: { xs: '100%', sm: 'auto' } }}
-              >
-                {t('reset_data')}
-              </Button>
-            </Box>
-          </Grid>
+        {/* Conditional rendering based on current view */}
+        {currentView === 'home' && (
+          <HomePage
+            firstTermAverage={firstTermClassAverage}
+            secondTermAverage={secondTermClassAverage}
+            thirdTermAverage={thirdTermClassAverage}
+            annualAverage={annualClassAverage}
+            annualPassPercentage={annualPassPercentage}
+            totalStudents={students.length}
+            totalSubjects={subjects.length}
+          />
+        )}
 
-          {students.length > 0 && subjects.length > 0 && (
-            <Grid item xs={12}>
-              <Paper 
-                elevation={3} 
-                sx={{ 
-                  p: { xs: 1.5, sm: 3 },
-                  borderRadius: 2,
-                  transition: 'box-shadow 0.3s ease-in-out',
-                  '&:hover': {
-                    boxShadow: 6,
-                  },
-                  overflowX: 'auto'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                  {t('enter_marks_comments')}
-                </Typography>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>{t('sequence')}</InputLabel>
-                  <Select
-                    value={selectedSequence}
-                    label={t('sequence')}
-                    onChange={(e) => setSelectedSequence(e.target.value as keyof StudentMarks)}
-                  >
-                    <MenuItem value="firstSequence">{t('first_sequence')}</MenuItem>
-                    <MenuItem value="secondSequence">{t('second_sequence')}</MenuItem>
-                    <MenuItem value="thirdSequence">{t('third_sequence')}</MenuItem>
-                    <MenuItem value="fourthSequence">{t('fourth_sequence')}</MenuItem>
-                    <MenuItem value="fifthSequence">{t('fifth_sequence')}</MenuItem>
-                    <MenuItem value="sixthSequence">{t('sixth_sequence')}</MenuItem>
-                  </Select>
-                </FormControl>
-                <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                  <MarksTable
-                    students={students.map(s => s.name)}
-                    subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
-                    marks={marks}
-                    selectedSequence={selectedSequence}
-                    studentComments={studentComments}
-                    onMarkChange={handleMarkChange}
-                    onCommentChange={handleCommentChange}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, mt: 3, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <Button
-                    variant="contained"
-                    onClick={calculateSequenceResults}
-                    disabled={!hasMarks}
-                    sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  >
-                    {t('calculate_results')}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    onClick={calculateTermResults}
-                    disabled={!hasMarks}
-                    sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  >
-                    {t('term_results')}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="info"
-                    onClick={() => setReportModalOpen(true)}
-                    disabled={!hasMarks}
-                    sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  >
-                    {t('student_reports')}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="warning"
-                    onClick={() => setBulkMarksModalOpen(true)}
-                    sx={{ width: { xs: '100%', sm: 'auto' } }}
-                  >
-                    {t('bulk_marks_entry')}
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
-          )}
+        {currentView === 'grades' && (
+          <GradesPage
+            students={students}
+            subjects={subjects}
+            onAddStudent={handleAddStudent}
+            onEditStudent={handleEditStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onAddSubject={handleAddSubject}
+            onEditSubject={handleEditSubject}
+            onDeleteSubject={handleDeleteSubject}
+            onOpenStudentModal={() => setStudentsOpen(true)}
+            onOpenSubjectModal={() => setSubjectsOpen(true)}
+          />
+        )}
 
-          {sequenceResults.length > 0 && (
-            <Grid item xs={12}>
-              <Paper 
-                elevation={3} 
-                sx={{ 
-                  p: { xs: 1.5, sm: 3 },
-                  borderRadius: 2,
-                  mt: 2,
-                  transition: 'box-shadow 0.3s ease-in-out',
-                  '&:hover': {
-                    boxShadow: 6,
-                  },
-                  overflowX: 'auto'
-                }}
-              >
-                <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                  <ResultsTable
-                    selectedResultView={selectedResultView}
-                    onResultViewChange={setSelectedResultView}
-                    sequenceResults={sequenceResults}
-                    firstTermResults={firstTermResults}
-                    secondTermResults={secondTermResults}
-                    thirdTermResults={thirdTermResults}
-                    annualResults={annualResults}
-                    sequenceClassAverage={sequenceClassAverage}
-                    firstTermClassAverage={firstTermClassAverage}
-                    secondTermClassAverage={secondTermClassAverage}
-                    thirdTermClassAverage={thirdTermClassAverage}
-                    annualClassAverage={annualClassAverage}
-                    sequencePassPercentage={sequencePassPercentage}
-                    firstTermPassPercentage={firstTermPassPercentage}
-                    secondTermPassPercentage={secondTermPassPercentage}
-                    thirdTermPassPercentage={thirdTermPassPercentage}
-                    annualPassPercentage={annualPassPercentage}
-                    passingMark={PASSING_MARK}
-                    onDownloadPDF={() => {
-                      generateResultsPDF(
-                        t(selectedResultView),
-                        selectedResultView === 'sequence' ? sequenceResults :
-                        selectedResultView === 'firstTerm' ? firstTermResults :
-                        selectedResultView === 'secondTerm' ? secondTermResults :
-                        selectedResultView === 'thirdTerm' ? thirdTermResults :
-                        annualResults,
-                        selectedResultView === 'sequence' ? sequenceClassAverage! :
-                        selectedResultView === 'firstTerm' ? firstTermClassAverage! :
-                        selectedResultView === 'secondTerm' ? secondTermClassAverage! :
-                        selectedResultView === 'thirdTerm' ? thirdTermClassAverage! :
-                        annualClassAverage!,
-                        selectedResultView === 'sequence' ? sequencePassPercentage! :
-                        selectedResultView === 'firstTerm' ? firstTermPassPercentage! :
-                        selectedResultView === 'secondTerm' ? secondTermPassPercentage! :
-                        selectedResultView === 'thirdTerm' ? thirdTermPassPercentage! :
-                        annualPassPercentage!,
-                        selectedResultView === 'annual',
-                        t
-                      );
-                    }}
-                    isDownloadDisabled={false}
-                  />
-                </Box>
-              </Paper>
-            </Grid>
-          )}
-        </Grid>
+        {currentView === 'calculate' && (
+          <EnhancedCalculatePage
+            students={students}
+            subjects={subjects}
+            marks={marks}
+            selectedSequence={selectedSequence}
+            studentComments={studentComments}
+            hasMarks={hasMarks}
+            onSequenceChange={setSelectedSequence}
+            onMarkChange={handleMarkChange}
+            onCommentChange={handleCommentChange}
+            onCalculateSequenceResults={calculateSequenceResults}
+            onCalculateTermResults={calculateTermResults}
+            onOpenBulkMarksModal={() => setBulkMarksModalOpen(true)}
+          />
+        )}
 
+        {currentView === 'results' && (
+          <EnhancedResultsPage
+            selectedResultView={selectedResultView}
+            sequenceResults={sequenceResults}
+            firstTermResults={firstTermResults}
+            secondTermResults={secondTermResults}
+            thirdTermResults={thirdTermResults}
+            annualResults={annualResults}
+            sequenceClassAverage={sequenceClassAverage}
+            firstTermClassAverage={firstTermClassAverage}
+            secondTermClassAverage={secondTermClassAverage}
+            thirdTermClassAverage={thirdTermClassAverage}
+            annualClassAverage={annualClassAverage}
+            sequencePassPercentage={sequencePassPercentage}
+            firstTermPassPercentage={firstTermPassPercentage}
+            secondTermPassPercentage={secondTermPassPercentage}
+            thirdTermPassPercentage={thirdTermPassPercentage}
+            annualPassPercentage={annualPassPercentage}
+            passingMark={PASSING_MARK}
+            onResultViewChange={setSelectedResultView}
+            onDownloadPDF={() => {
+              generateResultsPDF(
+                t(selectedResultView),
+                selectedResultView === 'sequence' ? sequenceResults :
+                selectedResultView === 'firstTerm' ? firstTermResults :
+                selectedResultView === 'secondTerm' ? secondTermResults :
+                selectedResultView === 'thirdTerm' ? thirdTermResults :
+                annualResults,
+                selectedResultView === 'sequence' ? sequenceClassAverage! :
+                selectedResultView === 'firstTerm' ? firstTermClassAverage! :
+                selectedResultView === 'secondTerm' ? secondTermClassAverage! :
+                selectedResultView === 'thirdTerm' ? thirdTermClassAverage! :
+                annualClassAverage!,
+                selectedResultView === 'sequence' ? sequencePassPercentage! :
+                selectedResultView === 'firstTerm' ? firstTermPassPercentage! :
+                selectedResultView === 'secondTerm' ? secondTermPassPercentage! :
+                selectedResultView === 'thirdTerm' ? thirdTermPassPercentage! :
+                annualPassPercentage!,
+                selectedResultView === 'annual',
+                t
+              );
+            }}
+
+          />
+        )}
+
+        {currentView === 'print' && (
+          <TemplateGalleryPage
+            subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
+            availableData={{
+              // Pre-fill term titles if the current result view suggests a specific term
+              termTitleEn:
+                selectedResultView === 'firstTerm' ? 'FIRST TERM REPORT CARD' :
+                selectedResultView === 'secondTerm' ? 'SECOND TERM REPORT CARD' :
+                selectedResultView === 'thirdTerm' ? 'THIRD TERM REPORT CARD' : undefined,
+              termTitleFr:
+                selectedResultView === 'firstTerm' ? 'BULLETIN DU PREMIER TRIMESTRE' :
+                selectedResultView === 'secondTerm' ? 'BULLETIN DU DEUXIÈME TRIMESTRE' :
+                selectedResultView === 'thirdTerm' ? 'BULLETIN DU TROISIÈME TRIMESTRE' : undefined,
+            }}
+            onSelectTemplate={(templateId, extraData) => {
+              // Defer student selection to existing ReportModal for single/batch options
+              setReportForTemplate(true);
+              setPendingTemplateId(templateId);
+              setPendingTemplateData(extraData || {});
+              setReportModalOpen(true);
+            }}
+            onBack={() => {
+              setCurrentView('home');
+              setBottomNavValue(0);
+            }}
+          />
+        )}
+
+        {/* Modals - Always rendered regardless of view */}
         <StudentModal
           open={studentsOpen}
           onClose={() => setStudentsOpen(false)}
@@ -947,10 +1244,12 @@ function App() {
           open={reportModalOpen}
           onClose={() => setReportModalOpen(false)}
           students={students.map(s => s.name)}
-          onGenerateReport={handleGenerateStudentReport}
-          onGenerateAllReports={handleGenerateAllReports}
+          onGenerateReport={reportForTemplate ? handleGenerateTemplateForStudent : handleGenerateStudentReport}
+          onGenerateAllReports={reportForTemplate ? handleGenerateTemplateForAll : handleGenerateAllReports}
           selectedSequence={selectedSequence}
           selectedResultView={selectedResultView}
+          enableTermChoice={reportForTemplate}
+          onChangeResultView={(view) => setSelectedResultView(view as any)}
         />
 
         <BulkMarksEntry
@@ -960,6 +1259,32 @@ function App() {
           subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
           selectedSequence={selectedSequence}
           onSave={handleMarkChange}
+        />
+
+        <BottomNav
+          value={bottomNavValue}
+          onChange={(_, newValue) => {
+            setBottomNavValue(newValue);
+            switch (newValue) {
+              case 0:
+                setCurrentView('home');
+                break;
+              case 1:
+                setCurrentView('grades');
+                break;
+              case 2:
+                setCurrentView('calculate');
+                break;
+              case 3:
+                setCurrentView('results');
+                break;
+              case 4:
+                setCurrentView('print');
+                break;
+              default:
+                setCurrentView('home');
+            }
+          }}
         />
       </Container>
     </AuthWrapper>

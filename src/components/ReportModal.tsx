@@ -21,6 +21,9 @@ interface ReportModalProps {
   onGenerateAllReports: () => void;
   selectedSequence: string;
   selectedResultView: string;
+  // Optional: enable choosing which term/annual to generate
+  enableTermChoice?: boolean;
+  onChangeResultView?: (view: 'firstTerm' | 'secondTerm' | 'thirdTerm' | 'annual') => void;
 }
 
 const ReportModal: React.FC<ReportModalProps> = ({
@@ -31,6 +34,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
   onGenerateAllReports,
   selectedSequence,
   selectedResultView,
+  enableTermChoice,
+  onChangeResultView,
 }) => {
   const { t } = useTranslation();
   const [selectedStudentIndex, setSelectedStudentIndex] = useState<
@@ -88,6 +93,22 @@ const ReportModal: React.FC<ReportModalProps> = ({
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
+        {enableTermChoice && (
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="term-select-label">{t('select_term') || 'Select term'}</InputLabel>
+            <Select
+              labelId="term-select-label"
+              value={selectedResultView}
+              label={t('select_term') || 'Select term'}
+              onChange={(e) => onChangeResultView && onChangeResultView(e.target.value as any)}
+            >
+              <MenuItem value="firstTerm">{t('firstTerm') || 'First Term'}</MenuItem>
+              <MenuItem value="secondTerm">{t('secondTerm') || 'Second Term'}</MenuItem>
+              <MenuItem value="thirdTerm">{t('thirdTerm') || 'Third Term'}</MenuItem>
+              <MenuItem value="annual">{t('annual') || 'Annual'}</MenuItem>
+            </Select>
+          </FormControl>
+        )}
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel id="student-select-label">
             {t("select_student")}
