@@ -104,6 +104,7 @@ interface HomePageProps {
   annualPassPercentage: number | null;
   totalStudents: number;
   totalSubjects: number;
+  passRateLabel?: string;
 }
 
 const HomePage: React.FC<HomePageProps> = ({ 
@@ -114,6 +115,7 @@ const HomePage: React.FC<HomePageProps> = ({
   annualPassPercentage,
   totalStudents,
   totalSubjects,
+  passRateLabel,
 }) => {
   const theme = useTheme();
   const { currentUser } = useAuth();
@@ -252,7 +254,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 {annualPassPercentage?.toFixed(0) || '0'}%
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {t('pass_rate') || 'Pass Rate'}
+                {passRateLabel || t('pass_rate') || 'Pass Rate'}
               </Typography>
             </Box>
           </Grid>

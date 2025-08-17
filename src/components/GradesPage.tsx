@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@mui/material/styles';
 
 interface GradesPageProps {
-  students: Array<{ id: string; name: string }>;
+  students: Array<{ id: string; name: string; imageUrl?: string }>;
   subjects: Array<{ id: string; name: string; total: number }>;
   onAddStudent: (name: string) => void;
   onEditStudent: (index: number, name: string) => void;
@@ -220,6 +220,7 @@ const GradesPage: React.FC<GradesPageProps> = ({
                         <CardContent sx={{ p: 3 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                             <Avatar 
+                              src={student.imageUrl}
                               sx={{ 
                                 bgcolor: `${getRandomColor(index)}.main`,
                                 width: 48,

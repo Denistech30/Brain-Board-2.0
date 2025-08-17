@@ -23,8 +23,8 @@ interface SubjectModalProps {
   open: boolean;
   onClose: () => void;
   subjects: Subject[];
-  onAddSubject: (name: string, total: number) => void;
-  onEditSubject: (index: number, name: string, total: number) => void;
+  onAddSubject: (name: string, total: number, teacher?: string) => void;
+  onEditSubject: (index: number, name: string, total: number, teacher?: string) => void;
   onDeleteSubject: (index: number) => void;
 }
 
@@ -39,18 +39,21 @@ const SubjectModal: React.FC<SubjectModalProps> = ({
   const { t } = useTranslation();
   const [newSubjectName, setNewSubjectName] = useState<string>("");
   const [newSubjectTotal, setNewSubjectTotal] = useState<string>("");
+  const [newSubjectTeacher, setNewSubjectTeacher] = useState<string>("");
   const [editSubjectIndex, setEditSubjectIndex] = useState<number | null>(null);
   const [editSubjectValue, setEditSubjectValue] = useState<Subject>({
     name: "",
     total: 0,
+    teacher: "",
   });
 
   const handleAddSubject = () => {
     const total = parseInt(newSubjectTotal, 10);
     if (newSubjectName.trim() === "" || isNaN(total) || total <= 0) return;
-    onAddSubject(newSubjectName.trim(), total);
+    onAddSubject(newSubjectName.trim(), total, newSubjectTeacher.trim() || undefined);
     setNewSubjectName("");
     setNewSubjectTotal("");
+    setNewSubjectTeacher("");
   };
 
   const handleEditSubject = (index: number) => {
@@ -68,10 +71,11 @@ const SubjectModal: React.FC<SubjectModalProps> = ({
     onEditSubject(
       editSubjectIndex,
       editSubjectValue.name.trim(),
-      editSubjectValue.total
+      editSubjectValue.total,
+      (editSubjectValue.teacher || "").trim() || undefined
     );
     setEditSubjectIndex(null);
-    setEditSubjectValue({ name: "", total: 0 });
+    setEditSubjectValue({ name: "", total: 0, teacher: "" });
   };
 
   const modalStyle = {
@@ -127,6 +131,9 @@ const SubjectModal: React.FC<SubjectModalProps> = ({
               <TableCell sx={{ fontWeight: "bold" }}>
                 {t("total_score")}
               </TableCell>
+              <TableCell sx={{ fontWeight: "bold" }}>
+                {t("teacher") || "Teacher"}
+              </TableCell>
               <TableCell sx={{ fontWeight: "bold" }}>{t("actions")}</TableCell>
             </TableRow>
           </TableHead>
@@ -171,6 +178,24 @@ const SubjectModal: React.FC<SubjectModalProps> = ({
                   )}
                 </TableCell>
                 <TableCell>
+                  {editSubjectIndex === index ? (
+                    <TextField
+                      value={editSubjectValue.teacher || ""}
+                      onChange={(e) =>
+                        setEditSubjectValue({
+                          ...editSubjectValue,
+                          teacher: e.target.value,
+                        })
+                      }
+                      size="small"
+                      placeholder={(t("teacher") || "Teacher") + ` (${t('optional') || 'optional'})`}
+                      sx={{ width: { xs: "100%", sm: "160px" } }}
+                    />
+                  ) : (
+                    subject.teacher || "—"
+                  )}
+                </TableCell>
+                <TableCell>
                   <Box sx={{ display: "flex", gap: 1 }}>
                     {editSubjectIndex === index ? (
                       <IconButton onClick={handleSaveSubjectEdit}>
@@ -212,6 +237,18 @@ const SubjectModal: React.FC<SubjectModalProps> = ({
                   sx={{ width: { xs: "60px", sm: "80px" } }}
                   onKeyPress={(e) => {
                     if (e.key === "Enter" && newSubjectName.trim() !== "") handleAddSubject();
+                  }}
+                />
+              </TableCell>
+              <TableCell>
+                <TextField
+                  value={newSubjectTeacher}
+                  onChange={(e) => setNewSubjectTeacher(e.target.value)}
+                  placeholder={(t("teacher") || "Teacher") + ` (${t('optional') || 'optional'})`}
+                  size="small"
+                  sx={{ width: { xs: "100%", sm: "160px" } }}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && newSubjectName.trim() !== "" && newSubjectTotal.trim() !== "") handleAddSubject();
                   }}
                 />
               </TableCell>

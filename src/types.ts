@@ -1,6 +1,7 @@
 export interface Subject {
   name: string;
   total: number;
+  teacher?: string;
 }
 
 export interface SequenceMarks {

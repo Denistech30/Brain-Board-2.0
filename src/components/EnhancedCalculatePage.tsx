@@ -82,6 +82,7 @@ const EnhancedCalculatePage: React.FC<EnhancedCalculatePageProps> = ({
   const [completionStats, setCompletionStats] = useState({ completed: 0, total: 0 });
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  
 
   // Calculate completion statistics
   useEffect(() => {
@@ -337,7 +338,6 @@ const EnhancedCalculatePage: React.FC<EnhancedCalculatePageProps> = ({
                     <MenuItem value="sixthSequence">{t('sixth_sequence')}</MenuItem>
                   </Select>
                 </FormControl>
-
                 <Box sx={{ width: '100%', overflowX: 'auto', mb: 3 }}>
                   <MarksTable
                     students={students.map(s => s.name)}

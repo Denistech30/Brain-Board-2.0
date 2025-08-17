@@ -11,6 +11,10 @@ import {
   TableCell,
   TextField,
   Button,
+  Avatar,
+  Stack,
+  Tooltip,
+  FormHelperText,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -23,9 +27,10 @@ interface StudentModalProps {
   open: boolean;
   onClose: () => void;
   students: string[];
-  onAddStudent: (name: string) => void;
-  onEditStudent: (index: number, name: string) => void;
+  onAddStudent: (name: string, file?: File) => void;
+  onEditStudent: (index: number, name: string, file?: File) => void;
   onDeleteStudent: (index: number) => void;
+  studentImageUrls?: (string | undefined)[];
 }
 
 const StudentModal: React.FC<StudentModalProps> = ({
@@ -35,16 +40,46 @@ const StudentModal: React.FC<StudentModalProps> = ({
   onAddStudent,
   onEditStudent,
   onDeleteStudent,
+  studentImageUrls,
 }) => {
   const { t } = useTranslation();
   const [newStudentName, setNewStudentName] = useState<string>("");
+  const [newStudentFile, setNewStudentFile] = useState<File | undefined>(undefined);
+  const [newFileError, setNewFileError] = useState<string>("");
   const [editStudentIndex, setEditStudentIndex] = useState<number | null>(null);
   const [editStudentValue, setEditStudentValue] = useState<string>("");
+  const [editStudentFile, setEditStudentFile] = useState<File | undefined>(undefined);
+  const [editFileError, setEditFileError] = useState<string>("");
+
+  const maxSize = 2 * 1024 * 1024; // 2MB
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+  const validateFile = (file?: File) => {
+    if (!file) return "";
+    if (!allowedTypes.includes(file.type)) return "Only JPG, PNG, or WEBP allowed";
+    if (file.size > maxSize) return "Max size 2MB";
+    return "";
+  };
+
+  const handleNewFileChange = (file?: File) => {
+    const err = validateFile(file);
+    setNewFileError(err);
+    if (!err) setNewStudentFile(file);
+  };
+
+  const handleEditFileChange = (file?: File) => {
+    const err = validateFile(file);
+    setEditFileError(err);
+    if (!err) setEditStudentFile(file);
+  };
 
   const handleAddStudent = () => {
     if (newStudentName.trim() === "") return;
-    onAddStudent(newStudentName.trim());
+    if (newFileError) return;
+    onAddStudent(newStudentName.trim(), newStudentFile);
     setNewStudentName("");
+    setNewStudentFile(undefined);
+    setNewFileError("");
   };
 
   const handleEditStudent = (index: number) => {
@@ -54,9 +89,12 @@ const StudentModal: React.FC<StudentModalProps> = ({
 
   const handleSaveStudentEdit = () => {
     if (editStudentIndex === null || editStudentValue.trim() === "") return;
-    onEditStudent(editStudentIndex, editStudentValue.trim());
+    if (editFileError) return;
+    onEditStudent(editStudentIndex, editStudentValue.trim(), editStudentFile);
     setEditStudentIndex(null);
     setEditStudentValue("");
+    setEditStudentFile(undefined);
+    setEditFileError("");
   };
 
   const modalStyle = {
@@ -127,11 +165,40 @@ const StudentModal: React.FC<StudentModalProps> = ({
                       sx={{ width: { xs: "100%", sm: "200px" } }}
                     />
                   ) : (
-                    student
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Avatar sx={{ width: 28, height: 28 }} src={studentImageUrls?.[index]} />
+                      <span>{student}</span>
+                    </Stack>
                   )}
                 </TableCell>
                 <TableCell>
-                  <Box sx={{ display: "flex", gap: 1 }}>
+                  <Box sx={{ display: "flex", gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {editStudentIndex === index && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <input
+                          id={`edit-file-${index}`}
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleEditFileChange(e.target.files?.[0])}
+                        />
+                        <Tooltip title="Upload image (JPG/PNG/WEBP, max 2MB)">
+                          <label htmlFor={`edit-file-${index}`}>
+                            <Button variant="outlined" component="span" size="small">
+                              {t("upload") || "Upload"}
+                            </Button>
+                          </label>
+                        </Tooltip>
+                        <Avatar
+                          sx={{ width: 36, height: 36 }}
+                          src={editStudentFile ? URL.createObjectURL(editStudentFile) : (studentImageUrls?.[index] || undefined)}
+                          alt="preview"
+                        />
+                        {editFileError && (
+                          <FormHelperText error sx={{ ml: 1 }}>{editFileError}</FormHelperText>
+                        )}
+                      </Stack>
+                    )}
                     {editStudentIndex === index ? (
                       <IconButton onClick={handleSaveStudentEdit}>
                         <SaveIcon color="success" fontSize="small" />
@@ -150,7 +217,7 @@ const StudentModal: React.FC<StudentModalProps> = ({
             ))}
             <TableRow>
               <TableCell>
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                   <TextField
                     value={newStudentName}
                     onChange={(e) => setNewStudentName(e.target.value)}
@@ -161,6 +228,30 @@ const StudentModal: React.FC<StudentModalProps> = ({
                       if (e.key === "Enter") handleAddStudent();
                     }}
                   />
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <input
+                      id="add-file"
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleNewFileChange(e.target.files?.[0])}
+                    />
+                    <Tooltip title="Upload image (JPG/PNG/WEBP, max 2MB)">
+                      <label htmlFor="add-file">
+                        <Button variant="outlined" component="span" size="small">
+                          {t("upload") || "Upload"}
+                        </Button>
+                      </label>
+                    </Tooltip>
+                    <Avatar
+                      sx={{ width: 36, height: 36 }}
+                      src={newStudentFile ? URL.createObjectURL(newStudentFile) : undefined}
+                      alt="preview"
+                    />
+                    {newFileError && (
+                      <FormHelperText error sx={{ ml: 1 }}>{newFileError}</FormHelperText>
+                    )}
+                  </Stack>
                   <Button
                     variant="contained"
                     color="primary"

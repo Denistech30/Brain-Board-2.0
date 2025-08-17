@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Container, 
@@ -42,20 +42,25 @@ import EnhancedCalculatePage from './components/EnhancedCalculatePage';
 import EnhancedResultsPage from './components/EnhancedResultsPage';
 import TemplateGalleryPage from './components/TemplateGalleryPage';
 import { generateStudentReport, generateResultsPDF } from './utils/pdfGenerator';
+// Supabase for image storage
+import { supabase, SUPABASE_BUCKET } from './supabaseClient';
 import { useAuth } from './context/AuthContext';
 import AuthWrapper from './components/Auth/AuthWrapper';
-import { collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, doc, addDoc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { db } from './firebaseConfig';
 
 interface FirestoreStudent {
   id: string;
   name: string;
+  imageUrl?: string;
+  imagePath?: string; // Supabase object path for cleanup
 }
 
 interface FirestoreSubject {
   id: string;
   name: string;
   total: number;
+  teacher?: string;
 }
 
 function App() {
@@ -105,6 +110,91 @@ function App() {
   const [annualPassPercentage, setAnnualPassPercentage] = useState<number | null>(null);
 
   const PASSING_MARK = 10;
+
+  // Refs for debounced writes and latest state snapshots
+  const marksRef = useRef<StudentMarks[]>([]);
+  const commentsRef = useRef<{ [key: number]: { [key: string]: string } }>({});
+  const markSaveTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const commentSaveTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    marksRef.current = marks;
+  }, [marks]);
+
+  useEffect(() => {
+    commentsRef.current = studentComments;
+  }, [studentComments]);
+
+  // Cleanup any pending timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(markSaveTimeoutsRef.current).forEach((t) => clearTimeout(t));
+      Object.values(commentSaveTimeoutsRef.current).forEach((t) => clearTimeout(t));
+    };
+  }, []);
+
+  // Load cached quick stats early so Home shows something immediately
+  useEffect(() => {
+    const loadSavedStats = async () => {
+      if (!currentUser) return;
+      try {
+        const snap = await getDoc(doc(db, `users/${currentUser.uid}/stats/current`));
+        if (snap.exists()) {
+          const s: any = snap.data();
+          if (typeof s.firstTermClassAverage === 'number') setFirstTermClassAverage(s.firstTermClassAverage);
+          if (typeof s.secondTermClassAverage === 'number') setSecondTermClassAverage(s.secondTermClassAverage);
+          if (typeof s.thirdTermClassAverage === 'number') setThirdTermClassAverage(s.thirdTermClassAverage);
+          if (typeof s.annualClassAverage === 'number') setAnnualClassAverage(s.annualClassAverage);
+
+          if (typeof s.firstTermPassPercentage === 'number') setFirstTermPassPercentage(s.firstTermPassPercentage);
+          if (typeof s.secondTermPassPercentage === 'number') setSecondTermPassPercentage(s.secondTermPassPercentage);
+          if (typeof s.thirdTermPassPercentage === 'number') setThirdTermPassPercentage(s.thirdTermPassPercentage);
+          if (typeof s.annualPassPercentage === 'number') setAnnualPassPercentage(s.annualPassPercentage);
+        }
+      } catch (e) {
+        // Non-blocking
+        console.warn('Failed to load cached stats:', e);
+      }
+    };
+    loadSavedStats();
+  }, [currentUser]);
+
+  // Persist quick stats so Home can show immediately on next load
+  const saveStats = async () => {
+    if (!currentUser) return;
+    try {
+      const payload = {
+        firstTermClassAverage,
+        secondTermClassAverage,
+        thirdTermClassAverage,
+        annualClassAverage,
+        firstTermPassPercentage,
+        secondTermPassPercentage,
+        thirdTermPassPercentage,
+        annualPassPercentage,
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, `users/${currentUser.uid}/stats/current`), payload, { merge: true });
+    } catch (e) {
+      // Non-blocking
+      console.warn('Failed to save quick stats:', e);
+    }
+  };
+
+  // Auto-calculate summaries on data load so Home quick stats are ready at app open
+  useEffect(() => {
+    if (dataLoading) return;
+    if (!students.length || !subjects.length) return;
+    // Attempt each term calculation; functions internally check mark availability
+    calculateFirstTerm();
+    calculateSecondTerm();
+    calculateThirdTerm();
+    // Calculate annual after terms
+    setTimeout(() => {
+      calculateAnnualResults();
+    }, 0);
+  }, [dataLoading, students, subjects, marks]);
 
   // Load data from Firestore
   useEffect(() => {
@@ -177,7 +267,7 @@ function App() {
   };
 
   // Student handlers
-  const handleAddStudent = async (name: string) => {
+  const handleAddStudent = async (name: string, file?: File) => {
     if (!currentUser) return;
 
     try {
@@ -186,7 +276,34 @@ function App() {
         createdAt: new Date().toISOString()
       });
 
-      const newStudent = { id: studentRef.id, name };
+      let imageUrl: string | undefined;
+      let imagePath: string | undefined;
+      if (file) {
+        try {
+          imagePath = `users/${currentUser.uid}/students/${studentRef.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabase
+            .storage
+            .from(SUPABASE_BUCKET)
+            .upload(imagePath, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+          if (uploadErr) {
+            console.error("Error uploading student image:", uploadErr);
+            alert(`Failed to upload image. Please verify the Supabase Storage configuration and try again.\n\n${(uploadErr as any).message || String(uploadErr)}`);
+          } else {
+            const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(imagePath);
+            if (data?.publicUrl) {
+              imageUrl = data.publicUrl;
+              await updateDoc(doc(db, `users/${currentUser.uid}/students/${studentRef.id}`), { imageUrl, imagePath });
+            } else {
+              console.warn("No public URL returned. Ensure the bucket is set to Public in Supabase.");
+              alert("Image uploaded, but the app couldn't obtain a public URL. Make sure the bucket is set to Public.");
+            }
+          }
+        } catch (uploadErr) {
+          console.error("Error uploading student image:", uploadErr);
+        }
+      }
+
+      const newStudent = { id: studentRef.id, name, ...(imageUrl ? { imageUrl } : {}), ...(imagePath ? { imagePath } : {}) } as FirestoreStudent;
       setStudents(prev => [...prev, newStudent]);
 
       // Initialize marks for new student
@@ -208,17 +325,52 @@ function App() {
     }
   };
 
-  const handleEditStudent = async (index: number, name: string) => {
+  const handleEditStudent = async (index: number, name: string, file?: File) => {
     if (!currentUser) return;
 
     const student = students[index];
     try {
-      await updateDoc(doc(db, `users/${currentUser.uid}/students/${student.id}`), {
-        name
-      });
+      await updateDoc(doc(db, `users/${currentUser.uid}/students/${student.id}`), { name });
+
+      let imageUrl: string | undefined;
+      let imagePath: string | undefined;
+      const oldImagePath = student.imagePath;
+      if (file) {
+        try {
+          imagePath = `users/${currentUser.uid}/students/${student.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabase
+            .storage
+            .from(SUPABASE_BUCKET)
+            .upload(imagePath, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+          if (uploadErr) {
+            console.error("Error uploading student image:", uploadErr);
+            alert(`Failed to upload image. Please verify the Supabase Storage configuration and try again.\n\n${(uploadErr as any).message || String(uploadErr)}`);
+          } else {
+            const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(imagePath);
+            if (data?.publicUrl) {
+              imageUrl = data.publicUrl;
+              await updateDoc(doc(db, `users/${currentUser.uid}/students/${student.id}`), { imageUrl, imagePath });
+
+              // Best-effort cleanup of old image only after successful upload
+              if (oldImagePath) {
+                try {
+                  await supabase.storage.from(SUPABASE_BUCKET).remove([oldImagePath]);
+                } catch (e) {
+                  // Ignore cleanup errors
+                }
+              }
+            } else {
+              console.warn("No public URL returned. Ensure the bucket is set to Public in Supabase.");
+              alert("Image uploaded, but the app couldn't obtain a public URL. Make sure the bucket is set to Public.");
+            }
+          }
+        } catch (uploadErr) {
+          console.error("Error uploading student image:", uploadErr);
+        }
+      }
 
       const updatedStudents = [...students];
-      updatedStudents[index] = { ...student, name };
+      updatedStudents[index] = { ...student, name, ...(imageUrl ? { imageUrl } : {}), ...(imagePath ? { imagePath } : {}) };
       setStudents(updatedStudents);
     } catch (error) {
       console.error("Error updating student:", error);
@@ -243,6 +395,15 @@ function App() {
       
       await batch.commit();
 
+      // Delete associated image from Supabase if present
+      if (student.imagePath) {
+        try {
+          await supabase.storage.from(SUPABASE_BUCKET).remove([student.imagePath]);
+        } catch (imgErr) {
+          // Ignore if not found or any storage-specific error
+        }
+      }
+
       setStudents(students.filter((_, i) => i !== index));
       setMarks(marks.filter((_, i) => i !== index));
       
@@ -255,36 +416,43 @@ function App() {
   };
 
   // Subject handlers
-  const handleAddSubject = async (name: string, total: number) => {
+  const handleAddSubject = async (name: string, total: number, teacher?: string) => {
     if (!currentUser) return;
-
     try {
-      const subjectRef = await addDoc(collection(db, `users/${currentUser.uid}/subjects`), {
+      const payload: any = {
         name,
         total,
-        createdAt: new Date().toISOString()
-      });
-
-      const newSubject = { id: subjectRef.id, name, total };
+        createdAt: new Date().toISOString(),
+      };
+      if (typeof teacher === 'string' && teacher.trim() !== '') {
+        payload.teacher = teacher.trim();
+      }
+      const subjectRef = await addDoc(collection(db, `users/${currentUser.uid}/subjects`), payload);
+      const newSubject: FirestoreSubject = { id: subjectRef.id, name, total, teacher: payload.teacher };
       setSubjects(prev => [...prev, newSubject]);
     } catch (error) {
       console.error("Error adding subject:", error);
     }
   };
 
-  const handleEditSubject = async (index: number, name: string, total: number) => {
+  const handleEditSubject = async (index: number, name: string, total: number, teacher?: string) => {
     if (!currentUser) return;
-
     const subject = subjects[index];
+    if (!subject) return;
     try {
-      await updateDoc(doc(db, `users/${currentUser.uid}/subjects/${subject.id}`), {
-        name,
-        total
+      const update: any = { name, total };
+      // Only update teacher if provided and non-empty to avoid overwriting existing value unintentionally
+      if (typeof teacher !== 'undefined' && teacher.trim() !== '') {
+        update.teacher = teacher.trim();
+      }
+      await updateDoc(doc(db, `users/${currentUser.uid}/subjects/${subject.id}`), update);
+      const updated: FirestoreSubject = { ...subject, name, total };
+      if (update.teacher) updated.teacher = update.teacher;
+      setSubjects(prev => {
+        const next = [...prev];
+        next[index] = updated;
+        return next;
       });
-
-      const updatedSubjects = [...subjects];
-      updatedSubjects[index] = { ...subject, name, total };
-      setSubjects(updatedSubjects);
     } catch (error) {
       console.error("Error updating subject:", error);
     }
@@ -292,29 +460,30 @@ function App() {
 
   const handleDeleteSubject = async (index: number) => {
     if (!currentUser) return;
-
     const subject = subjects[index];
+    if (!subject) return;
     try {
       await deleteDoc(doc(db, `users/${currentUser.uid}/subjects/${subject.id}`));
-
       setSubjects(subjects.filter((_, i) => i !== index));
-      
-      // Remove the deleted subject's marks
+
+      // Remove the deleted subject's marks from all students locally
       const updatedMarks = marks.map(studentMarks => {
-        const newMarks = { ...studentMarks };
-        Object.keys(newMarks).forEach(sequence => {
-          if (sequence !== 'id') {
-            delete newMarks[sequence as keyof StudentMarks][subject.name];
+        const newMarks = { ...studentMarks } as StudentMarks;
+        (['firstSequence','secondSequence','thirdSequence','fourthSequence','fifthSequence','sixthSequence'] as const).forEach(seq => {
+          if (newMarks[seq]) {
+            const seqObj = { ...newMarks[seq] } as Record<string, any>;
+            delete seqObj[subject.name];
+            (newMarks as any)[seq] = seqObj;
           }
         });
         return newMarks;
       });
       setMarks(updatedMarks);
 
-      // Update marks in Firestore
+      // Persist marks cleanup in Firestore
       const batch = writeBatch(db);
-      students.forEach((student, studentIndex) => {
-        batch.update(doc(db, `users/${currentUser.uid}/marks/${student.id}`), updatedMarks[studentIndex]);
+      students.forEach((stu, studentIndex) => {
+        batch.update(doc(db, `users/${currentUser.uid}/marks/${stu.id}`), updatedMarks[studentIndex] as any);
       });
       await batch.commit();
     } catch (error) {
@@ -338,7 +507,7 @@ function App() {
     ) {
       try {
         const student = students[studentIndex];
-        const currentMarks = marks[studentIndex] || {
+        const currentMarks = marksRef.current[studentIndex] || {
           firstSequence: {},
           secondSequence: {},
           thirdSequence: {},
@@ -346,22 +515,35 @@ function App() {
           fifthSequence: {},
           sixthSequence: {},
         };
-        
-        const updatedMarks = {
+
+        const updatedMarksForStudent = {
           ...currentMarks,
           [selectedSequence]: {
             ...currentMarks[selectedSequence],
-            [subject]: numericMark
-          }
+            [subject]: numericMark,
+          },
         };
 
-        await setDoc(doc(db, `users/${currentUser.uid}/marks/${student.id}`), updatedMarks);
-
-        setMarks(prevMarks => {
-          const newMarks = [...prevMarks];
-          newMarks[studentIndex] = updatedMarks;
-          return newMarks;
+        // Immediate UI update
+        setMarks((prev) => {
+          const next = [...prev];
+          next[studentIndex] = updatedMarksForStudent as any;
+          return next;
         });
+
+        // Debounced Firestore write per student
+        const key = String(studentIndex);
+        if (markSaveTimeoutsRef.current[key]) {
+          clearTimeout(markSaveTimeoutsRef.current[key]);
+        }
+        markSaveTimeoutsRef.current[key] = setTimeout(async () => {
+          try {
+            const latest = marksRef.current[studentIndex] || updatedMarksForStudent;
+            await setDoc(doc(db, `users/${currentUser.uid}/marks/${student.id}`), latest);
+          } catch (err) {
+            console.error("Error updating mark:", err);
+          }
+        }, 500);
       } catch (error) {
         console.error("Error updating mark:", error);
       }
@@ -377,17 +559,31 @@ function App() {
     if (!currentUser) return;
 
     try {
+      const existing = commentsRef.current[studentIndex] || {};
       const updatedComments = {
-        ...studentComments[studentIndex],
-        [sequence]: comment
+        ...existing,
+        [sequence]: comment,
       };
 
-      await setDoc(doc(db, `users/${currentUser.uid}/comments/${studentIndex}`), updatedComments);
-
-      setStudentComments(prev => ({
+      // Immediate UI update
+      setStudentComments((prev) => ({
         ...prev,
-        [studentIndex]: updatedComments
+        [studentIndex]: updatedComments,
       }));
+
+      // Debounced Firestore write per student comments
+      const key = String(studentIndex);
+      if (commentSaveTimeoutsRef.current[key]) {
+        clearTimeout(commentSaveTimeoutsRef.current[key]);
+      }
+      commentSaveTimeoutsRef.current[key] = setTimeout(async () => {
+        try {
+          const latest = commentsRef.current[studentIndex] || updatedComments;
+          await setDoc(doc(db, `users/${currentUser.uid}/comments/${studentIndex}`), latest);
+        } catch (err) {
+          console.error("Error updating comment:", err);
+        }
+      }, 500);
     } catch (error) {
       console.error("Error updating comment:", error);
     }
@@ -414,8 +610,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq1Mark = Number(marks[index].firstSequence[subject.name] || 0);
-        const seq2Mark = Number(marks[index].secondSequence[subject.name] || 0);
+        const seq1Mark = Number(marks[index]?.firstSequence?.[subject.name] ?? 0);
+        const seq2Mark = Number(marks[index]?.secondSequence?.[subject.name] ?? 0);
         totalMarks += (seq1Mark + seq2Mark);
         totalPossible += (subject.total * 2);
       });
@@ -437,6 +633,7 @@ function App() {
     setFirstTermResults(firstTermWithRank);
     setFirstTermClassAverage(firstTermClassAvg);
     setFirstTermPassPercentage(firstTermPassPerc);
+    void saveStats();
   };
 
   const calculateSecondTerm = () => {
@@ -449,8 +646,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq3Mark = Number(marks[index].thirdSequence[subject.name] || 0);
-        const seq4Mark = Number(marks[index].fourthSequence[subject.name] || 0);
+        const seq3Mark = Number(marks[index]?.thirdSequence?.[subject.name] ?? 0);
+        const seq4Mark = Number(marks[index]?.fourthSequence?.[subject.name] ?? 0);
         totalMarks += (seq3Mark + seq4Mark);
         totalPossible += (subject.total * 2);
       });
@@ -472,6 +669,7 @@ function App() {
     setSecondTermResults(secondTermWithRank);
     setSecondTermClassAverage(secondTermClassAvg);
     setSecondTermPassPercentage(secondTermPassPerc);
+    void saveStats();
   };
 
   const calculateThirdTerm = () => {
@@ -484,8 +682,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq5Mark = Number(marks[index].fifthSequence[subject.name] || 0);
-        const seq6Mark = Number(marks[index].sixthSequence[subject.name] || 0);
+        const seq5Mark = Number(marks[index]?.fifthSequence?.[subject.name] ?? 0);
+        const seq6Mark = Number(marks[index]?.sixthSequence?.[subject.name] ?? 0);
         totalMarks += (seq5Mark + seq6Mark);
         totalPossible += (subject.total * 2);
       });
@@ -507,6 +705,7 @@ function App() {
     setThirdTermResults(thirdTermWithRank);
     setThirdTermClassAverage(thirdTermClassAvg);
     setThirdTermPassPercentage(thirdTermPassPerc);
+    void saveStats();
   };
 
   const calculateAnnualResults = () => {
@@ -543,6 +742,9 @@ function App() {
     setAnnualResults(annualWithRank);
     setAnnualClassAverage(annualClassAvg);
     setAnnualPassPercentage(annualPassPerc);
+
+    // Persist quick stats so Home can show immediately on next load
+    void saveStats();
   };
 
   // Calculate results with auto-term calculation
@@ -552,8 +754,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const mark = marks[index][selectedSequence][subject.name] || 0;
-        totalMarks += Number(mark);
+        const mark = Number(marks[index]?.[selectedSequence]?.[subject.name] ?? 0);
+        totalMarks += mark;
         totalPossible += subject.total;
       });
 
@@ -599,8 +801,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq1Mark = Number(marks[index].firstSequence[subject.name] || 0);
-        const seq2Mark = Number(marks[index].secondSequence[subject.name] || 0);
+        const seq1Mark = Number(marks[index]?.firstSequence?.[subject.name] ?? 0);
+        const seq2Mark = Number(marks[index]?.secondSequence?.[subject.name] ?? 0);
         totalMarks += (seq1Mark + seq2Mark);
         totalPossible += (subject.total * 2);
       });
@@ -615,8 +817,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq3Mark = Number(marks[index].thirdSequence[subject.name] || 0);
-        const seq4Mark = Number(marks[index].fourthSequence[subject.name] || 0);
+        const seq3Mark = Number(marks[index]?.thirdSequence?.[subject.name] ?? 0);
+        const seq4Mark = Number(marks[index]?.fourthSequence?.[subject.name] ?? 0);
         totalMarks += (seq3Mark + seq4Mark);
         totalPossible += (subject.total * 2);
       });
@@ -631,8 +833,8 @@ function App() {
       let totalPossible = 0;
 
       subjects.forEach(subject => {
-        const seq5Mark = Number(marks[index].fifthSequence[subject.name] || 0);
-        const seq6Mark = Number(marks[index].sixthSequence[subject.name] || 0);
+        const seq5Mark = Number(marks[index]?.fifthSequence?.[subject.name] ?? 0);
+        const seq6Mark = Number(marks[index]?.sixthSequence?.[subject.name] ?? 0);
         totalMarks += (seq5Mark + seq6Mark);
         totalPossible += (subject.total * 2);
       });
@@ -717,6 +919,9 @@ function App() {
 
     // Set view to first term by default
     setSelectedResultView('firstTerm');
+
+    // Persist quick stats so Home can show immediately on next load
+    void saveStats();
   };
 
   // Generate reports
@@ -1101,24 +1306,67 @@ function App() {
           </List>
         </Box>
       </Drawer>
-      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 4 }, mt: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 4 } }}>
-        {/* Conditional rendering based on current view */}
-        {currentView === 'home' && (
-          <HomePage
-            firstTermAverage={firstTermClassAverage}
-            secondTermAverage={secondTermClassAverage}
-            thirdTermAverage={thirdTermClassAverage}
-            annualAverage={annualClassAverage}
-            annualPassPercentage={annualPassPercentage}
-            totalStudents={students.length}
-            totalSubjects={subjects.length}
-          />
-        )}
+    <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 4 }, mt: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 4 } }}>
+      {/* Conditional rendering based on current view */}
+      {currentView === 'home' && (
+        (() => {
+          const isFirstTerm = selectedSequence === 'firstSequence' || selectedSequence === 'secondSequence';
+          const isSecondTerm = selectedSequence === 'thirdSequence' || selectedSequence === 'fourthSequence';
+          const isThirdTerm = selectedSequence === 'fifthSequence' || selectedSequence === 'sixthSequence';
 
-        {currentView === 'grades' && (
-          <GradesPage
-            students={students}
-            subjects={subjects}
+          const hasFirstTerm = Number.isFinite(Number(firstTermPassPercentage));
+          const hasSecondTerm = Number.isFinite(Number(secondTermPassPercentage));
+          const hasThirdTerm = Number.isFinite(Number(thirdTermPassPercentage));
+
+          // Resolve the display context: prefer the selected term if it has data; otherwise fall back to sequence
+          const context = (isFirstTerm && hasFirstTerm)
+            ? 'firstTerm'
+            : (isSecondTerm && hasSecondTerm)
+            ? 'secondTerm'
+            : (isThirdTerm && hasThirdTerm)
+            ? 'thirdTerm'
+            : 'sequence';
+
+          const rawActivePass = context === 'firstTerm'
+            ? firstTermPassPercentage
+            : context === 'secondTerm'
+            ? secondTermPassPercentage
+            : context === 'thirdTerm'
+            ? thirdTermPassPercentage
+            : sequencePassPercentage;
+
+          const numActivePass = Number(rawActivePass);
+          const activePass = Number.isFinite(numActivePass)
+            ? Math.min(100, Math.max(0, numActivePass))
+            : 0;
+
+          const activeLabel = context === 'firstTerm'
+            ? 'First Term Pass Rate'
+            : context === 'secondTerm'
+            ? 'Second Term Pass Rate'
+            : context === 'thirdTerm'
+            ? 'Third Term Pass Rate'
+            : 'Sequence Pass Rate';
+
+          return (
+            <HomePage
+              firstTermAverage={context === 'firstTerm' ? firstTermClassAverage : null}
+              secondTermAverage={context === 'secondTerm' ? secondTermClassAverage : null}
+              thirdTermAverage={context === 'thirdTerm' ? thirdTermClassAverage : null}
+              annualAverage={null}
+              annualPassPercentage={activePass}
+              passRateLabel={activeLabel}
+              totalStudents={students.length}
+              totalSubjects={subjects.length}
+            />
+          );
+        })()
+      )}
+
+      {currentView === 'grades' && (
+        <GradesPage
+          students={students}
+          subjects={subjects}
             onAddStudent={handleAddStudent}
             onEditStudent={handleEditStudent}
             onDeleteStudent={handleDeleteStudent}
@@ -1226,6 +1474,7 @@ function App() {
           open={studentsOpen}
           onClose={() => setStudentsOpen(false)}
           students={students.map(s =>s.name)}
+          studentImageUrls={students.map(s => s.imageUrl)}
           onAddStudent={handleAddStudent}
           onEditStudent={handleEditStudent}
           onDeleteStudent={handleDeleteStudent}
@@ -1234,7 +1483,7 @@ function App() {
         <SubjectModal
           open={subjectsOpen}
           onClose={() => setSubjectsOpen(false)}
-          subjects={subjects.map(s => ({ name: s.name, total: s.total }))}
+          subjects={subjects.map(s => ({ name: s.name, total: s.total, teacher: s.teacher }))}
           onAddSubject={handleAddSubject}
           onEditSubject={handleEditSubject}
           onDeleteSubject={handleDeleteSubject}
