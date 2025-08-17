@@ -46,7 +46,7 @@ import { generateStudentReport, generateResultsPDF } from './utils/pdfGenerator'
 import { supabase, SUPABASE_BUCKET } from './supabaseClient';
 import { useAuth } from './context/AuthContext';
 import AuthWrapper from './components/Auth/AuthWrapper';
-import { collection, doc, addDoc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { db } from './firebaseConfig';
 
 interface FirestoreStudent {
@@ -139,9 +139,10 @@ function App() {
     const loadSavedStats = async () => {
       if (!currentUser) return;
       try {
-        const snap = await getDoc(doc(db, `users/${currentUser.uid}/stats/current`));
-        if (snap.exists()) {
-          const s: any = snap.data();
+        const colSnap = await getDocs(collection(db, `users/${currentUser.uid}/stats`));
+        const docSnap = colSnap.docs.find(d => d.id === 'current');
+        if (docSnap) {
+          const s: any = docSnap.data();
           if (typeof s.firstTermClassAverage === 'number') setFirstTermClassAverage(s.firstTermClassAverage);
           if (typeof s.secondTermClassAverage === 'number') setSecondTermClassAverage(s.secondTermClassAverage);
           if (typeof s.thirdTermClassAverage === 'number') setThirdTermClassAverage(s.thirdTermClassAverage);
@@ -175,7 +176,12 @@ function App() {
         annualPassPercentage,
         updatedAt: new Date().toISOString(),
       };
-      await setDoc(doc(db, `users/${currentUser.uid}/stats/current`), payload, { merge: true });
+      const ref = doc(db, `users/${currentUser.uid}/stats/current`);
+      try {
+        await updateDoc(ref, payload as any);
+      } catch (e) {
+        await setDoc(ref, payload as any);
+      }
     } catch (e) {
       // Non-blocking
       console.warn('Failed to save quick stats:', e);
